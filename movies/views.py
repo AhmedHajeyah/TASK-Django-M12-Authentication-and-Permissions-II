@@ -1,8 +1,12 @@
+from distutils.log import Log
 from django.db import OperationalError
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
-
+from django.contrib.auth import authenticate, get_user_model
+from .forms import Register, LoginForm
 from movies import forms, models
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
 
 
 def get_movies(request: HttpRequest) -> HttpResponse:
@@ -29,8 +33,12 @@ def get_movie(request: HttpRequest, movie_id: int) -> HttpResponse:
     return render(request, "movie_detail.html", context)
 
 
+# Add a login_required decorator to create_movie view in movies/views.py
+
 def create_movie(request: HttpRequest) -> HttpResponse:
     form = forms.MovieForm()
+    if request.user.is_anonymous:
+        return redirect("login")
     if request.method == "POST":
         # BONUS: This needs to have the `user` injected in the constructor
         # somehow
@@ -44,3 +52,45 @@ def create_movie(request: HttpRequest) -> HttpResponse:
     }
 
     return render(request, "create_movie.html", context)
+
+
+def register_user(request):
+    form = Register()
+    if request.method == "POST":
+        form = Register(request.POST)
+        if form.is_valid():
+            user = form.save(commit=False)
+            user.set_password(user.password)
+            user.save()
+            login(request, user)
+            return redirect("home")
+
+    context = {
+        "form": form,
+        "user": request.user,
+    }
+    return render(request, "register.html", context)
+
+
+def logout_user(request):
+    logout(request)
+    return redirect("home")
+
+
+def login_user(request):
+    form = LoginForm()
+    if request.method == "POST":
+        form = LoginForm(request.POST)
+        if form.is_valid():
+            username = form.cleaned_data['username']
+            password = form.cleaned_data['password']
+            authenticated_user = authenticate(
+                request, username=username, password=password)
+            if authenticated_user is not None:
+                login(request, authenticated_user)
+
+        return redirect("home")
+    context = {
+        "form": form,
+    }
+    return render(request, "login.html", context)
